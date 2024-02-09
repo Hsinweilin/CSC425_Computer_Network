@@ -32,7 +32,7 @@ int main (int argc, char * argv[])
         printf("Connect success\n");
         while ((size = getline(&line, &len, stdin)) != -1) {
             uint32_t networkOrderSize = htonl((uint32_t)size);  // Convert size to network byte order
-            send(s, &networkOrderSize, sizeof(networkOrderSize), 0);  // Send out the size as a 4-byte integer
+            send(s, &networkOrderSize, 4, 0);  // Send out the size as a 4-byte integer
             send(s, line, size, 0);//send out the line itself
             //printf("%s", line);
         }

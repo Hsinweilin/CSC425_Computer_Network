@@ -39,20 +39,14 @@ int main(int argc, char * argv[]) {
     while (1) {
         // new socket for new connections
         int ns = accept(s, (struct sockaddr *) &cliAddr, &len);
-        ssize_t n = 0;// length of the received message, can also tell the status of connection
-        uint32_t receive_len;
-        while (recv(ns, &receive_len, sizeof(receive_len), 0) > 0) {// keep receive message from client, receive the 4 byte int, length of playload
-            n = recv(ns, buf, sizeof(buf), 0);//
-            buf[n] = '\0';  // Add null terminator to properly terminate the buffer
-            printf("%-4u\t%s", ntohl(receive_len), buf);
+        uint32_t n;//the 4 byte length of playload
+        while (recv(ns, &n, 4, 0) > 0) {// keep receive message from client, receive the 4 byte int, length of playload
+            recv(ns, buf, ntohl(n), 0);//
+            buf[ntohl(n)] = '\0';  // Add null terminator to properly terminate the buffer
+            printf("%-4u\t%s", ntohl(n), buf);
             memset(buf, 0, sizeof(buf));  // Reset buf
         }
 
-        if (n == 0) {
-            printf("Connection closed by peer\n");
-        } else if (n < 0) {
-            perror("recv failed");
-        }
         close(ns);
     }
 
