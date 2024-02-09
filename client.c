@@ -2,6 +2,7 @@
 // Created by Hsinwei Lin on 2024/1/28.
 //
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -24,15 +25,16 @@ int main (int argc, char * argv[])
 
     // connect
     int connection_status = connect(s, (struct sockaddr *) &serAddr, sizeof(serAddr));
-    perror("connection failed\n");
-    printf("connection_status:%d\n", connection_status);
     char *line = NULL;
     size_t len = 0;
-    ssize_t size;
+    ssize_t     size;
     if (connection_status == 0) {// if connect success
+        printf("Connect success\n");
         while ((size = getline(&line, &len, stdin)) != -1) {
-            int send_status = send(s, line, sizeof(line), 0);
-            printf("%zd %s\n", size, line);
+            uint32_t networkOrderSize = htonl((uint32_t)size);  // Convert size to network byte order
+            send(s, &networkOrderSize, sizeof(uint32_t), 0);  // Send out the size as a 4-byte integer
+            send(s, line, size, 0);//send out the line itself
+            //printf("%s", line);
         }
     }
     else{
