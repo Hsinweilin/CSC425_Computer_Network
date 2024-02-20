@@ -35,6 +35,7 @@ void callSelect(int s, int ns) {//select() code
 
         if (rv == -1) {
             perror("select");
+            return;
         }
         else if (rv == 0) {
             printf("Timeout occurred! No data after 10.5 seconds\n");
@@ -43,15 +44,19 @@ void callSelect(int s, int ns) {//select() code
             // one or both of the descriptors have data
             if (FD_ISSET(s, &readfds)) {
                 ssize_t fromSproxy_len = recv(s, buf1, MAX_LEN, 0);//receive data from sproxy
-                buf1[fromSproxy_len] = '\0';
-                printf("%s\n", buf1);//print received data
+                if (fromSproxy_len == 0)
+                    return;
+                //buf1[fromSproxy_len] = '\0';
+                //printf("%s\n", buf1);//print received data
                 send(ns, buf1, fromSproxy_len, 0);//send data to telnet
             }
 
             if (FD_ISSET(ns, &readfds)) {
                 ssize_t fromTelnet_len = recv(ns, buf2, MAX_LEN, 0);//receive data from telnet
-                buf2[fromTelnet_len] = '\n';
-                printf("%s\n", buf2);//print received data
+                if (fromTelnet_len == 0)
+                    return;
+                //buf2[fromTelnet_len] = '\0';
+                //printf("%s\n", buf2);//print received data
                 send(s, buf2, fromTelnet_len, 0);//send data to sproxy
             }
         }
@@ -105,7 +110,7 @@ int main (int argc, char * argv[])
 
     // bind server address struct to t socket
     int bind_status = bind(t, (struct sockaddr *) &myAddr, sizeof(myAddr));
-    printf("t socket bind_status%d\n", bind_status);
+    //printf("t socket bind_status%d\n", bind_status);
     if (bind_status < 0) {
         perror("t socket bind");
         exit(EXIT_FAILURE);
@@ -117,36 +122,38 @@ int main (int argc, char * argv[])
     struct sockaddr_in cliAddr;
     bzero(&cliAddr, sizeof(cliAddr));
     socklen_t tlen = sizeof(cliAddr);
-    int ns = accept(t, (struct sockaddr *) &cliAddr, &tlen);
-    if (ns > 0) {// if connection from telnet success, try to connect to sproxy
-        printf("connect to telnet success\n");
-        //create connection to sproxy
-        int s = socket(PF_INET, SOCK_STREAM, 0);//socket to sproxy
-        struct sockaddr_in serAddr;
-        // clear serAddr
-        bzero(&serAddr, sizeof(serAddr));
-        // assign values of the sproxy address struct
-        serAddr.sin_family = AF_INET;
-        serAddr.sin_addr.s_addr = inet_addr(argv[2]);//convert IP address to internet byte order
-        serAddr.sin_port = htons(atoi(argv[3]));//convert string to integer then to internet byte order
+    while(1) {
+        int ns = accept(t, (struct sockaddr *) &cliAddr, &tlen);
+        if (ns > 0) {// if connection from telnet success, try to connect to sproxy
+            //printf("connect to telnet success\n");
+            //create connection to sproxy
+            int s = socket(PF_INET, SOCK_STREAM, 0);//socket to sproxy
+            struct sockaddr_in serAddr;
+            // clear serAddr
+            bzero(&serAddr, sizeof(serAddr));
+            // assign values of the sproxy address struct
+            serAddr.sin_family = AF_INET;
+            serAddr.sin_addr.s_addr = inet_addr(argv[2]);//convert IP address to internet byte order
+            serAddr.sin_port = htons(atoi(argv[3]));//convert string to integer then to internet byte order
 
-        // connect cproxy socket to sproxy socket
-        int connection_status = connect(s, (struct sockaddr *) &serAddr, sizeof(serAddr));
-        char *line = NULL; // a null line pointer that will be pointing to the line that is being read into the buffer
-        size_t len = 0; // capacity of the buffer, initialized as 0, let getline know the initial size of buffer, and can be updated by getline to have the actual size of buffer
-        ssize_t size; // actual length of input line in bytes
-        if (connection_status == 0) {// if connect success
-            printf("Connect to sproxy success\n");
-            callSelect(s, ns);//call the select method
+            // connect cproxy socket to sproxy socket
+            int connection_status = connect(s, (struct sockaddr *) &serAddr, sizeof(serAddr));
+            char *line = NULL; // a null line pointer that will be pointing to the line that is being read into the buffer
+            size_t len = 0; // capacity of the buffer, initialized as 0, let getline know the initial size of buffer, and can be updated by getline to have the actual size of buffer
+            ssize_t size; // actual length of input line in bytes
+            if (connection_status == 0) {// if connect success
+                //printf("Connect to sproxy success\n");
+                callSelect(s, ns);//call the select method
+            }
+            else{
+                perror("connect sproxy failed\n");
+            }
+            close(ns);
+            close(s);
         }
         else{
-            perror("connect sproxy failed\n");
+            perror("telnet fail");
         }
-        close(ns);
-        close(s);
-    }
-    else{
-        perror("telnet fail");
     }
 }
 
