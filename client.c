@@ -10,6 +10,54 @@
 #include <netdb.h>
 #include <string.h>
 
+void callSelect(int s, int ns) {//select() code
+    while(1){
+        int n, MAX_LEN = 256;
+        struct timeval tv;
+        fd_set readfds;
+        char buf1[MAX_LEN], buf2[MAX_LEN];
+        //clear the set
+        FD_ZERO(&readfds);
+        //add descriptors to the set
+        FD_SET(s, &readfds);
+        FD_SET(ns, &readfds);
+        //find the largest descriptor, and + 1
+        if (s > ns)
+            n = s + 1;
+        else
+            n = ns + 1;
+
+        //wait until either socket has data ready to recv() timeout 10.5 secs
+        tv.tv_sec = 10;
+        tv.tv_usec = 500000;
+        //select will return when at least one of the sockets has incoming traffic, or after timeout
+        int rv = select(n, &readfds, NULL, NULL, &tv);
+
+        if (rv == -1) {
+            perror("select");
+        }
+        else if (rv == 0) {
+            printf("Timeout occurred! No data after 10.5 seconds\n");
+        }
+        else{
+            // one or both of the descriptors have data
+            if (FD_ISSET(s, &readfds)) {
+                ssize_t fromSproxy_len = recv(s, buf1, MAX_LEN, 0);//receive data from sproxy
+                buf1[fromSproxy_len] = '\0';
+                printf("%s\n", buf1);//print received data
+                send(ns, buf1, fromSproxy_len, 0);//send data to telnet
+            }
+
+            if (FD_ISSET(ns, &readfds)) {
+                ssize_t fromTelnet_len = recv(ns, buf2, MAX_LEN, 0);//receive data from telnet
+                buf2[fromTelnet_len] = '\n';
+                printf("%s\n", buf2);//print received data
+                send(s, buf2, fromTelnet_len, 0);//send data to sproxy
+            }
+        }
+    }
+}
+
 int main (int argc, char * argv[])
 {
     // client socket
@@ -89,7 +137,7 @@ int main (int argc, char * argv[])
         ssize_t size; // actual length of input line in bytes
         if (connection_status == 0) {// if connect success
             printf("Connect to sproxy success\n");
-            //callSelect(s, ns)//call the select method
+            callSelect(s, ns);//call the select method
         }
         else{
             perror("connect sproxy failed\n");
@@ -102,49 +150,7 @@ int main (int argc, char * argv[])
     }
 }
 
-void callSelect(int s, int ns) {//select() code
-    int n, MAX_LEN = 256;
-    struct timeval tv;
-    fd_set readfds;
-    char buf1[MAX_LEN], buf2[MAX_LEN];
-    //clear the set
-    FD_ZERO(&readfds);
-    //add descriptors to the set
-    FD_SET(s, &readfds);
-    FD_SET(ns, &readfds);
-    //find the largest descriptor, and + 1
-    if (s > ns)
-        n = s + 1;
-    else
-        n = ns + 1;
 
-    //wait until either socket has data ready to recv() timeout 10.5 secs
-    tv.tv_sec = 10;
-    tv.tv_usec = 500000;
-
-    while(1){
-        //select will return when at least one of the sockets has incoming traffic, or after timeout
-        int rv = select(n, &readfds, NULL, NULL, &tv);
-
-        if (rv == -1) {
-            perror("select");
-        }
-        else if (rv == 0) {
-            printf("Timeout occurred! No data after 10.5 seconds\n");
-        }
-        else{
-            // one or both of the descriptors have data
-            if (FD_ISSET(s, &readfds)) {
-                recv(s, buf1, MAX_LEN, 0);//receive data from sproxy
-                //TODO: send data to telnet
-            }
-
-            if (FD_ISSET(ns, &readfds))
-                recv(ns, buf2, MAX_LEN, 0);//receive data from telnet
-            //TODO: send data to sproxy
-        }
-    }
-}
 
 
 

@@ -10,6 +10,56 @@
 #include <string.h>
 #include <unistd.h>  // Include for close function
 
+void callSelect(int td, int ns) {//select() code
+
+    while(1){
+        int n, MAX_LEN = 256;
+        struct timeval tv;
+        fd_set readfds;
+        char buf1[MAX_LEN], buf2[MAX_LEN];
+        //clear the set
+        FD_ZERO(&readfds);
+        //add descriptors to the set
+        FD_SET(td, &readfds);
+        FD_SET(ns, &readfds);
+        //find the largest descriptor, and + 1
+        if (td > ns)
+            n = td + 1;
+        else
+            n = ns + 1;
+
+        //wait until either socket has data ready to recv() timeout 10.5 secs
+        tv.tv_sec = 10;
+        tv.tv_usec = 500000;
+        //select will return when at least one of the sockets has incoming traffic, or after timeout
+        int rv = select(n, &readfds, NULL, NULL, &tv);
+
+        if (rv == -1) {
+            perror("select");
+            exit(EXIT_FAILURE);
+        }
+        else if (rv == 0) {
+            printf("Timeout occurred! No data after 10.5 seconds\n");
+        }
+        else{
+            // one or both of the descriptors have data
+            if (FD_ISSET(td, &readfds)) {
+                ssize_t fromTDaemon_len = recv(td, buf1, MAX_LEN, 0);//receive data from telnet daemon
+                buf1[fromTDaemon_len] = '\0';
+                printf("%s\n", buf1);//print received data
+                send(ns, buf1, fromTDaemon_len, 0);//send data to cproxy
+            }
+
+            if (FD_ISSET(ns, &readfds)) {
+                ssize_t fromCproxy_len = recv(ns, buf2, MAX_LEN, 0);//receive data from cproxy
+                buf2[fromCproxy_len] = '\0';
+                printf("%s\n", buf2);//print received data
+                send(td, buf2, fromCproxy_len, 0);//send data to telnet daemon
+            }
+        }
+    }
+}
+
 int main(int argc, char * argv[]) {
     // server socket
     int s = socket(PF_INET, SOCK_STREAM, 0);
@@ -75,6 +125,7 @@ int main(int argc, char * argv[]) {
         ssize_t size; // actual length of input line in bytes
         if (connection_status == 0) {// if connect success
             printf("Connect to telnet daemon success\n");
+            callSelect(td, ns);//call the select method
 //            while ((size = getline(&line, &len, stdin)) != -1) {
 //                uint32_t networkOrderSize = htonl((uint32_t)size);  // Convert size to network byte order
 //                send(s, &networkOrderSize, 4, 0);  // Send out the size as a 4-byte integer
