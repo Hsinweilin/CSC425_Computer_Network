@@ -53,7 +53,7 @@ void printList(struct linkedList* list){
         return;
 
     while(cur->next != NULL){
-        printf("%d\n", cur->data.sequenceNum);
+        //printf("%d\n", cur->data.sequenceNum);
         cur = cur->next;
     }
 }
@@ -65,9 +65,9 @@ void retransmit(int ack_C, int ack_S, struct linkedList* list, int socket, int s
     while(cur->data.sequenceNum != ack_C){
         cur = cur->next;
     }
-    printf("cproxy seq: %d, start retransmit %d\n", ack_C, cur->data.sequenceNum);
+    //printf("cproxy seq: %d, start retransmit %d\n", ack_C, cur->data.sequenceNum);
     while(cur != NULL){
-        printf("retransmit %d %s\n", cur->data.sequenceNum, cur->data.buf);
+        //printf("retransmit %d %s\n", cur->data.sequenceNum, cur->data.buf);
         setAndSendHeader(socket, cur->data.sequenceNum, ack_S, sessionID, 1);//send header to cproxy
         send(socket, cur->data.buf, cur->data.len, 0);//send data to cproxy
         cur = cur->next;
@@ -146,18 +146,23 @@ void callSelect(int td, int ns, int sID, int *seq_S, int *ack_S, struct linkedLi
 
             if((newReceiveTime - lastReceiveTime) >= 3){
                 //todo timeout need to reconnect
-                printf("connection lost, reconnecting\n");
+                //printf("connection lost, reconnecting\n");
                 return;//since this connect is already lost
             }
         }
         else{// one or both of the descriptors have data
             if (FD_ISSET(td, &readfds)) {
+                time_t curTime = time(NULL);
+                if ((curTime - lastReceiveTime) >= 3){
+                    //printf("connection lost, reconnecting\n");
+                    return;
+                }
                 char buf1[MAX_LEN];
                 ssize_t fromTDaemon_len = recv(td, buf1, MAX_LEN, 0);//receive data from telnet daemon
                 if (fromTDaemon_len > 0){
                     //TODO set and send header
                     *seq_S += 1;
-                    printf("add %d\n", *seq_S);
+                    //printf("add %d\n", *seq_S);
                     insertAtEnd(list, createNode(*seq_S, buf1, fromTDaemon_len));//insert new Node into the list
                     setAndSendHeader(ns, *seq_S, *ack_S, sessionID, 1);//send header to cproxy
                     send(ns, buf1, fromTDaemon_len, 0);//send data to cproxy
@@ -187,7 +192,7 @@ void callSelect(int td, int ns, int sID, int *seq_S, int *ack_S, struct linkedLi
                     perror("error receiving header");
                 }
                 struct Header *receivedHeader = (struct Header *)headerBuf;//make the header buffer into Header struct
-                printf("Received Header - messageType: %d, Seq: %d, Ack: %d, sessionID: %d\n", receivedHeader->messageType, receivedHeader->seq, receivedHeader->ack, receivedHeader->sessionID);
+                //printf("Received Header - messageType: %d, Seq: %d, Ack: %d, sessionID: %d\n", receivedHeader->messageType, receivedHeader->seq, receivedHeader->ack, receivedHeader->sessionID);
 //                if (list->head != NULL && receivedHeader->ack == list->head->data.sequenceNum + 1){//after receive confirm, remove data from linkedlist
 //                    printf("delete %d\n", list->head->data.sequenceNum);
 //                    list->head = list->head->next;
@@ -249,10 +254,10 @@ int main(int argc, char * argv[]) {
     struct linkedList dataList;
     dataList.head = NULL;
     while(1) {
-        printf("accepting sockets\n");
+        //printf("accepting sockets\n");
         int ns = accept(s, (struct sockaddr *) &cliAddr, &len);
         if (ns > 0) {
-            printf("connect with cproxy success\n");
+            //printf("connect with cproxy success\n");
 
             //receive first heartBeat message from cproxy
             char headerBuf[sizeof(struct Header)];
@@ -269,13 +274,14 @@ int main(int argc, char * argv[]) {
             //consider whether a new session or not
             if (sessionID == receivedHeader->sessionID){//this is a continuous from previous telnet connection
                 //todo continue the original session with telnet daemon
-                printf("continue the previous telnet daemon session\n");
+                //printf("continue the previous telnet daemon session\n");
                 //TODO retransmit
                 retransmit(receivedHeader->ack, num1, &dataList, ns, sessionID);
+                sleep(2);
                 callSelect(td_track, ns, sessionID, &num1, &num2, &dataList);//call the select method
             }
             else {//this is a new connection, set sessionID to the header sessionID
-                printf("This is a new telnet daemon session\n");
+                //printf("This is a new telnet daemon session\n");
                 dataList.head = NULL;
                 num1 = 0;
                 num2 = 1;
@@ -294,7 +300,7 @@ int main(int argc, char * argv[]) {
                 // connect sproxy client socket to telnet daemon socket
                 int connection_status = connect(td, (struct sockaddr *) &telnetAddr, sizeof(telnetAddr));
                 if (connection_status == 0) {// if connect success
-                    printf("Connect to telnet daemon success\n");
+                    //printf("Connect to telnet daemon success\n");
                     callSelect(td, ns, sessionID, &num1, &num2, &dataList);//call the select method
                     td_track = td;//keep track of socket to telnet daemon
                 }
@@ -305,9 +311,9 @@ int main(int argc, char * argv[]) {
             close(ns);
         }
         else{
-            printf("connect to cproxy failed\n");
+            //printf("connect to cproxy failed\n");
         }
     }
 
-    return 1
+    return 1;
 }

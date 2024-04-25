@@ -101,7 +101,7 @@ int callSelect(int s, int ns, int sID, int *seq_C, int *ack_C) {//select() code
 
             if ((newReceiveTime - lastReceiveTime) >= 3){
                 //todo timeout need to reconnect
-                printf("connection lost, reconnecting\n");
+                //printf("connection lost, reconnecting\n");
                 return 0;//since this connect is already lost
             }
         }
@@ -123,7 +123,7 @@ int callSelect(int s, int ns, int sID, int *seq_C, int *ack_C) {//select() code
                     perror("error receiving header");
                 }
                 struct Header *receivedHeader = (struct Header *)headerBuf;//make the header buffer into Header struct
-                printf("Received Header - messageType: %d, Seq: %d, Ack: %d, sessionID: %d\n", receivedHeader->messageType, receivedHeader->seq, receivedHeader->ack, receivedHeader->sessionID);
+                //printf("Received Header - messageType: %d, Seq: %d, Ack: %d, sessionID: %d\n", receivedHeader->messageType, receivedHeader->seq, receivedHeader->ack, receivedHeader->sessionID);
                 if (receivedHeader->seq != -1)
                     *ack_C = receivedHeader->seq + 1;
 
@@ -135,7 +135,7 @@ int callSelect(int s, int ns, int sID, int *seq_C, int *ack_C) {//select() code
                         //printf("received heart beat\n");
                     }
                     else{//it's a actual data packet, need to receive and forward
-                        printf("%s %zd\n", buf1, fromSproxy_len);
+                        //printf("%s %zd\n", buf1, fromSproxy_len);
                         send(ns, buf1, fromSproxy_len, 0);//send data to telnet
                     }
                 }
@@ -193,7 +193,7 @@ int main (int argc, char * argv[])
     while(1) {
         int ns = accept(t, (struct sockaddr *) &cliAddr, &tlen);
         if (ns > 0) {// if connection from telnet success, try to connect to sproxy
-            printf("connect to telnet success\n");
+            //printf("connect to telnet success\n");
             int sessionID;//keep track of this session ID
             srand(time(NULL));// Seed the random number generator
             sessionID = rand() % 101;  // rand() generates a number between 0 and RAND_MAX, so we use % 101 to get a number between 0 and 100
@@ -213,23 +213,24 @@ int main (int argc, char * argv[])
                 serAddr.sin_addr.s_addr = inet_addr(argv[2]);//convert IP address to internet byte order
                 serAddr.sin_port = htons(atoi(argv[3]));//convert string to integer then to internet byte order
                 int connection_status = connect(s, (struct sockaddr *) &serAddr, sizeof(serAddr));
+                sleep(1);
                 if (connection_status == 0) {// if connect success
-                    printf("connect to sproxy success\n");
+                    //printf("connect to sproxy success\n");
                     sendHeartBeat(s, sessionID, num1, num2);//send first heartBeat message to sproxy with random generated session ID
 //                    printf("sent out first heartBeat to sproxy\n");
                     int r = callSelect(s, ns, sessionID, &num1, &num2);//call the select method
                     if (r == 1){
-                        printf("connection to telnet close, waiting for next telnet session\n");
+                        //printf("connection to telnet close, waiting for next telnet session\n");
                         num1 = 0;
                         num2 = 1;
                         break;
                     }
                     else
-                        printf("connection to sproxy closed, reconnecting\n");
+                        //printf("connection to sproxy closed, reconnecting\n");
                     close(s);
                 }
                 else{
-                    perror("connect sproxy failed, attemping to reconnect\n");
+                    //perror("connect sproxy failed, attemping to reconnect\n");
                 }
             }
             close(ns);
